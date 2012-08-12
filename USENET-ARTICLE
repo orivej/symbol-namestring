@@ -1,0 +1,77 @@
+Subject: Re: name-to-symbol
+From: Erik Naggum <erik@naggum.no>
+Date: 1999/05/27
+Newsgroups: comp.lang.lisp
+Message-ID: <3136756949506727@naggum.no>
+
+* Kent M Pitman
+| By the way, the symbol-name of the test symbol you have assigned above is
+| not "test" but "TEST".
+
+* duff@iet.com (David A. Duff)
+| this is only true if we assume name-to-symbol calls #'read or some
+| variant (i.e., something which processes tokens according to the value of
+| *read-case*).   it is quite plausible to imagine a version of
+| name-to-symbol that would not do that.
+
+  if you are talking about Common Lisp, I know Kent was, there is no such
+  thing as a *READ-CASE* variable that controls the case.  there is a
+  READTABLE-CASE accessor that takes a readtable, the current of which is
+  the value of *READTABLE*.
+
+| what you say of course is true, but here you are talking about the lisp
+| reader, whereas above, some arbitrary function that processes strings was
+| being described and there's no reason whatsoever to think that such a
+| function would or should follow the conventions of the reader.
+
+  there is no reason whatsoever that such a function should _not_ follow
+  the conventions of reader.  there is an ample supply of reasons that it
+  should, such as the principle of least surprise, or the stronger version
+  of same: a prohibition against forcing the willfully confusing on users.
+
+  unless people use a Lisp that is not a Common Lisp, the case of the name
+  of symbols that read and print without special syntax is upper-case.
+  programmers should be aware of this, should be able to expect this, and
+  should not do anything special to cater to different conventions unless
+  they want to be portable to a Lisp that is not a Common Lisp.
+
+  however, it should come as no surprise that I prefer to read lowercase
+  instead of uppercase in code.  (in prose, I prefer to let symbols stand
+  out, and uppercase is very convenient for this purpose.)  this is where
+  the variable *PRINT-CASE* comes in.  the only problem is that one needs
+  to type in uppercase when dealing with names of symbols.  since that is a
+  context worth noting in its own right, I use a special read macro to help
+  me, and Allegro CL has a convenient internal function that returns the
+  casified string.  I have bound it to #", so a symbol name reads #"foo",
+  and the reader returns what the symbol-name of the symbol whose string
+  representation were "foo" would have been, without interning the symbol
+  -- or, in simpler terms, it returns the string that would be given to
+  INTERN to return the symbol.  I want it to be pervasive, so I have the
+  following code in the customization files when building new images:
+
+#+franz-inc excl:
+(loop
+ with readtables = (get-objects 11)
+ for i from 1 to (aref readtables 0)
+ for *readtable* = (aref readtables i)
+ when (readtable-dispatch-tables *readtable*) do
+  ;; reader for symbol names that does case conversion according to the
+  ;; rest of the symbol reader.  thanks to Sean Foderaro for the pointer.
+  (set-dispatch-macro-character #\# #\"
+    (named-function symbol-namestring-reader
+      (lambda (stream character prefix)
+        (declare (ignore prefix))
+        (prog1 (read-extended-token stream)
+          (unless (char= character (read-char stream))
+            (internal-reader-error stream "invalid symbol-namestring syntax")))))))
+
+  note that it also works with escaped characters: #"|foo|" => "foo"
+  regardless of case conversion, so there is no limitation to its use,
+  other than what makes sense stylistically.
+
+  (I demand no more than to be credited if you use it and that you identify
+  any changes you make as your own.)
+
+#:Erik
+--
+@1999-07-22T00:37:33Z -- pi billion seconds since the turn of the century
